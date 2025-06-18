@@ -1,12 +1,13 @@
-"""Dataset handling for GPT training."""
+"""Dataset handling for GPT training with Python code from GitHub."""
 
 import torch
 from torch.utils.data import Dataset, DataLoader
-from typing import Tuple, Optional
+from typing import Tuple, Optional, List
 import requests
 import os
 from pathlib import Path
 import logging
+import re
 
 from .tokenizer import CharacterTokenizer
 
@@ -47,14 +48,40 @@ class TextDataset(Dataset):
         return x, y
 
 
-class DataLoader:
-    """Enhanced data loader with proper error handling."""
+class PythonCodeDataLoader:
+    """Enhanced data loader for Python code from GitHub."""
     
-    def __init__(self, data_path: str, train_split: float = 0.9, block_size: int = 32):
+    # Curated Python repositories with clean, educational code
+    PYTHON_REPOS = [
+        # Core Python libraries (working URLs)
+        "https://raw.githubusercontent.com/python/cpython/main/Lib/functools.py",
+        "https://raw.githubusercontent.com/python/cpython/main/Lib/operator.py", 
+        "https://raw.githubusercontent.com/python/cpython/main/Lib/dataclasses.py",
+        "https://raw.githubusercontent.com/python/cpython/main/Lib/copy.py",
+        "https://raw.githubusercontent.com/python/cpython/main/Lib/math.py",
+        "https://raw.githubusercontent.com/python/cpython/main/Lib/random.py",
+        
+        # PyTorch modules (excellent for ML context)
+        "https://raw.githubusercontent.com/pytorch/pytorch/main/torch/nn/modules/linear.py",
+        "https://raw.githubusercontent.com/pytorch/pytorch/main/torch/nn/modules/conv.py",
+        "https://raw.githubusercontent.com/pytorch/pytorch/main/torch/nn/modules/activation.py",
+        "https://raw.githubusercontent.com/pytorch/pytorch/main/torch/nn/functional.py",
+        
+        # Popular libraries
+        "https://raw.githubusercontent.com/numpy/numpy/main/numpy/core/numeric.py",
+        "https://raw.githubusercontent.com/requests/requests/main/requests/models.py",
+        "https://raw.githubusercontent.com/psf/requests/main/src/requests/api.py",
+        
+        # Clean utility libraries
+        "https://raw.githubusercontent.com/pallets/flask/main/src/flask/app.py",
+        "https://raw.githubusercontent.com/django/django/main/django/utils/functional.py",
+    ]
+    
+    def __init__(self, data_path: str = "python_code.txt", train_split: float = 0.9, block_size: int = 32):
         """Initialize data loader.
         
         Args:
-            data_path: Path to text data file.
+            data_path: Path to save combined Python code.
             train_split: Fraction of data to use for training.
             block_size: Maximum sequence length.
         """
@@ -63,41 +90,117 @@ class DataLoader:
         self.block_size = block_size
         self.tokenizer = CharacterTokenizer()
         
-    def download_shakespeare(self, url: str = None) -> None:
-        """Download Shakespeare dataset.
+    def download_python_code(self, max_files: Optional[int] = None) -> None:
+        """Download Python code from GitHub repositories.
         
         Args:
-            url: URL to download from. Uses default if None.
+            max_files: Maximum number of files to download. If None, download all.
         """
-        if url is None:
-            url = "https://raw.githubusercontent.com/karpathy/char-rnn/master/data/tinyshakespeare/input.txt"
-        
         if os.path.exists(self.data_path):
-            logger.info(f"Data file already exists: {self.data_path}")
+            logger.info(f"Python code file already exists: {self.data_path}")
             return
         
-        logger.info(f"Downloading data from {url}")
-        try:
-            response = requests.get(url, timeout=30)
-            response.raise_for_status()
+        logger.info("Downloading Python code from GitHub repositories...")
+        
+        repos_to_download = self.PYTHON_REPOS[:max_files] if max_files else self.PYTHON_REPOS
+        all_code = []
+        
+        for i, url in enumerate(repos_to_download):
+            try:
+                logger.info(f"Downloading {i+1}/{len(repos_to_download)}: {url.split('/')[-1]}")
+                response = requests.get(url, timeout=30)
+                response.raise_for_status()
+                
+                code = response.text
+                
+                # Clean the code
+                code = self._clean_python_code(code)
+                
+                # Add file separator with filename
+                filename = url.split('/')[-1]
+                separator = f"\n\n# === {filename} ===\n\n"
+                all_code.append(separator + code)
+                
+            except requests.RequestException as e:
+                logger.warning(f"Failed to download {url}: {e}")
+                continue
+            except Exception as e:
+                logger.warning(f"Error processing {url}: {e}")
+                continue
+        
+        if not all_code:
+            raise RuntimeError("Failed to download any Python code files")
+        
+        # Combine all code
+        combined_code = "\n".join(all_code)
+        
+        # Save to file
+        Path(self.data_path).parent.mkdir(parents=True, exist_ok=True)
+        with open(self.data_path, 'w', encoding='utf-8') as f:
+            f.write(combined_code)
+        
+        logger.info(f"Downloaded and saved {len(all_code)} Python files to {self.data_path}")
+        logger.info(f"Total characters: {len(combined_code):,}")
+    
+    def _clean_python_code(self, code: str) -> str:
+        """Clean Python code by removing excessive comments and blank lines.
+        
+        Args:
+            code: Raw Python code.
             
-            Path(self.data_path).parent.mkdir(parents=True, exist_ok=True)
-            with open(self.data_path, 'w', encoding='utf-8') as f:
-                f.write(response.text)
+        Returns:
+            Cleaned Python code.
+        """
+        lines = code.split('\n')
+        cleaned_lines = []
+        
+        in_multiline_string = False
+        quote_char = None
+        
+        for line in lines:
+            stripped = line.strip()
             
-            logger.info(f"Data downloaded successfully to {self.data_path}")
-        except requests.RequestException as e:
-            raise RuntimeError(f"Failed to download data: {e}")
+            # Handle multiline strings
+            if '"""' in line or "'''" in line:
+                if not in_multiline_string:
+                    in_multiline_string = True
+                    quote_char = '"""' if '"""' in line else "'''"
+                elif quote_char in line:
+                    in_multiline_string = False
+                    quote_char = None
+            
+            # Skip certain types of lines
+            if (
+                # Skip excessive blank lines
+                (not stripped and len(cleaned_lines) > 0 and not cleaned_lines[-1].strip()) or
+                # Skip very long comment blocks (but keep docstrings)
+                (stripped.startswith('#') and len(stripped) > 100 and not in_multiline_string) or
+                # Skip license headers
+                any(keyword in stripped.lower() for keyword in ['copyright', 'license', 'author:', 'email:']) or
+                # Skip import statements that are too verbose
+                (stripped.startswith('from') and len(stripped) > 80)
+            ):
+                continue
+            
+            cleaned_lines.append(line)
+        
+        # Join and normalize whitespace
+        cleaned = '\n'.join(cleaned_lines)
+        
+        # Remove excessive blank lines
+        cleaned = re.sub(r'\n\s*\n\s*\n', '\n\n', cleaned)
+        
+        return cleaned.strip()
     
     def load_data(self) -> Tuple[torch.Tensor, torch.Tensor, CharacterTokenizer]:
-        """Load and tokenize data.
+        """Load and tokenize Python code data.
         
         Returns:
             Tuple of (train_data, val_data, tokenizer).
         """
         if not os.path.exists(self.data_path):
-            logger.info("Data file not found, downloading...")
-            self.download_shakespeare()
+            logger.info("Python code file not found, downloading...")
+            self.download_python_code()
         
         try:
             with open(self.data_path, 'r', encoding='utf-8') as f:
@@ -108,7 +211,7 @@ class DataLoader:
         if not text.strip():
             raise ValueError("Data file is empty")
         
-        logger.info(f"Loaded {len(text):,} characters")
+        logger.info(f"Loaded {len(text):,} characters of Python code")
         
         # Build tokenizer and encode text
         self.tokenizer.fit(text)
@@ -116,6 +219,10 @@ class DataLoader:
         
         logger.info(f"Vocabulary size: {len(self.tokenizer)}")
         logger.info(f"Total tokens: {len(tokens):,}")
+        
+        # Show vocabulary preview
+        vocab_preview = ''.join(self.tokenizer.chars[:50])
+        logger.info(f"Vocabulary preview: {repr(vocab_preview)}")
         
         # Split data
         n = int(self.train_split * len(tokens))
@@ -157,4 +264,24 @@ class DataLoader:
             pin_memory=True
         )
         
-        return train_loader, val_loader 
+        return train_loader, val_loader
+    
+    def preview_data(self, num_chars: int = 500) -> None:
+        """Preview the first few characters of the dataset.
+        
+        Args:
+            num_chars: Number of characters to preview.
+        """
+        if os.path.exists(self.data_path):
+            with open(self.data_path, 'r', encoding='utf-8') as f:
+                preview = f.read(num_chars)
+            print("Dataset Preview:")
+            print("=" * 50)
+            print(preview)
+            print("=" * 50)
+        else:
+            print("Dataset not downloaded yet. Call download_python_code() first.")
+
+
+# Backward compatibility with original DataLoader name
+DataLoader = PythonCodeDataLoader 

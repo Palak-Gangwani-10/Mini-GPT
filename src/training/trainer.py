@@ -10,7 +10,12 @@ from pathlib import Path
 import torch
 import torch.nn as nn
 from torch.utils.data import DataLoader
-import wandb
+try:
+    import wandb
+    WANDB_AVAILABLE = True
+except ImportError:
+    WANDB_AVAILABLE = False
+    wandb = None
 
 logger = logging.getLogger(__name__)
 
@@ -57,13 +62,15 @@ class Trainer:
         self.checkpoint_dir.mkdir(exist_ok=True)
         
         # Setup logging
-        self.use_wandb = config.get('use_wandb', False)
+        self.use_wandb = config.get('use_wandb', False) and WANDB_AVAILABLE
         if self.use_wandb:
             wandb.init(
                 project=config.get('project_name', 'gpt-training'),
                 config=config
             )
             wandb.watch(self.model)
+        elif config.get('use_wandb', False) and not WANDB_AVAILABLE:
+            logger.warning("W&B requested but not installed. Install with: pip install wandb")
     
     def _configure_optimizer(self) -> torch.optim.Optimizer:
         """Configure optimizer with proper weight decay."""
@@ -237,7 +244,7 @@ class Trainer:
                     f"Tokens/s: {total_tokens / log_interval:.0f}"
                 )
                 
-                if self.use_wandb:
+                if self.use_wandb and WANDB_AVAILABLE:
                     wandb.log({
                         'train/loss': loss.item(),
                         'train/avg_loss': avg_loss,
@@ -278,7 +285,7 @@ class Trainer:
                         f"Val Loss: {losses['val']:.4f}"
                     )
                     
-                    if self.use_wandb:
+                    if self.use_wandb and WANDB_AVAILABLE:
                         wandb.log({
                             'eval/train_loss': losses['train'],
                             'eval/val_loss': losses['val'],
@@ -309,7 +316,7 @@ class Trainer:
             total_time = time.time() - start_time
             logger.info(f"Training completed in {total_time:.2f} seconds")
             
-            if self.use_wandb:
+            if self.use_wandb and WANDB_AVAILABLE:
                 wandb.finish()
     
     @torch.no_grad()
