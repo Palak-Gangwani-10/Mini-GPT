@@ -1,4 +1,4 @@
-# Professional GPT Implementation for Python Code Generation 🐍
+# Professional GPT Implementation for Python Code Generation 
 
 A production-ready GPT (Generative Pre-trained Transformer) implementation specialized for **Python code generation**. This project transforms a basic educational notebook into a robust, scalable ML training pipeline that learns to generate Python code from real GitHub repositories.
 
