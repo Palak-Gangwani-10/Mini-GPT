@@ -181,7 +181,7 @@ class TrainingConfig:
 
 ### **Live Training Results** 📊
 
-![Training Progress]
+[Training Progress]
 <img width="533" alt="image" src="https://github.com/user-attachments/assets/d812ab67-0a26-4337-b6ff-06268f2a7985" />
 
 *Real training session showing successful Python code learning with decreasing loss from 4.0 → 2.4*
