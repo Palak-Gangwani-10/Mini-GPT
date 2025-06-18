@@ -181,7 +181,9 @@ class TrainingConfig:
 
 ### **Live Training Results** 📊
 
-![Training Progress](https://i.imgur.com/training-progress.png)
+![Training Progress]
+<img width="533" alt="image" src="https://github.com/user-attachments/assets/d812ab67-0a26-4337-b6ff-06268f2a7985" />
+
 *Real training session showing successful Python code learning with decreasing loss from 4.0 → 2.4*
 
 ### **Training Results**
@@ -192,7 +194,7 @@ class TrainingConfig:
 - **Function Generation**: Can generate complete function definitions
 - **Proper Indentation**: Maintains Python code structure
 
-### **Actual Performance Metrics** (from screenshot)
+### **Actual Performance Metrics** 
 ```
 Step   50: Loss 4.0354 → Learning basic patterns
 Step  100: Loss 3.4318 → Understanding syntax
